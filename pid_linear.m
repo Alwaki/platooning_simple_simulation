@@ -21,11 +21,12 @@ error = dt - t_ref;
 
 % Calculate control signal
 control_output = Kp * error;
+
+% Limit output
 if(control_output > limit)
    control_output = limit;
 elseif(control_output < 0)
     control_output = 0;
 end
 end
-
 
