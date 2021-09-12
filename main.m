@@ -32,7 +32,9 @@ close all;
 % Parameters
 goalRadius         = 0.1;
 sampleTime         = 0.1;
-t_ref              = 5;
+t_ref              = 2;
+wheel_base         = 0.287;
+wheel_radius       = 0.033;
 time               = 0;
 waypoint_tolerance = 0.8;
 path               = [2 2; 2.5 4; 4 6; 5 8; 7 9; 
@@ -41,14 +43,14 @@ path               = [2 2; 2.5 4; 4 6; 5 8; 7 9;
 
 %% CODE
 % Create vehicle model objects
-leader = differentialDriveKinematics("TrackWidth", 1, "VehicleInputs", "VehicleSpeedHeadingRate", ...
-                                    "WheelRadius", 0.05);
+leader = differentialDriveKinematics("TrackWidth", wheel_base, "VehicleInputs", "VehicleSpeedHeadingRate", ...
+                                    "WheelRadius", wheel_radius);
                                 
-robot = differentialDriveKinematics("TrackWidth", 1, "VehicleInputs", "VehicleSpeedHeadingRate", ...
-                                    "WheelRadius", 0.05);
+robot = differentialDriveKinematics("TrackWidth", wheel_base, "VehicleInputs", "VehicleSpeedHeadingRate", ...
+                                    "WheelRadius", wheel_radius);
 
-robot2 = differentialDriveKinematics("TrackWidth", 1, "VehicleInputs", "VehicleSpeedHeadingRate", ...
-                                    "WheelRadius", 0.05);
+robot2 = differentialDriveKinematics("TrackWidth", wheel_base, "VehicleInputs", "VehicleSpeedHeadingRate", ...
+                                    "WheelRadius", wheel_radius);
 % Initialize leader object
 leaderInitialLocation = path(1,:);
 leaderGoal = path(end,:);
@@ -57,25 +59,21 @@ leaderCurrentPose = [leaderInitialLocation initialOrientation]';
 
 % Intialize follower object
 robotInitialLocation = [2 1];
-robotGoal = path(end,:);
-initialOrientation = 0;
 robotCurrentPose = [robotInitialLocation initialOrientation]';
 
 % Intialize follower object
 robot2InitialLocation = [2 0];
-robot2Goal = path(end,:);
-initialOrientation = 0;
-robot2CurrentPose = [robotInitialLocation initialOrientation]';
+robot2CurrentPose = [robot2InitialLocation initialOrientation]';
 
 % Pure pursuit controller
     controller1 = controllerPurePursuit;
     controller1.Waypoints = path;
-    controller1.DesiredLinearVelocity = 0.3;
-    controller1.MaxAngularVelocity = 2;
+    controller1.DesiredLinearVelocity = 0.2;
+    controller1.MaxAngularVelocity = 1.82;
     controller1.LookaheadDistance = 0.3;
 
 %% PLOTTING
-distanceToGoal = norm(robotInitialLocation - robotGoal);
+distanceToGoal = 100;
 
 % Initialize the simulation loop
 vizRate = rateControl(1/sampleTime);
@@ -84,10 +82,18 @@ vizRate = rateControl(1/sampleTime);
 figure
 
 % Determine vehicle frame size to most closely represent vehicle with plotTransforms
-frameSize = robot.TrackWidth/0.8;
+frameSize = robot.TrackWidth/1.5;
 
+% Declare some empty variables for initial loop iteration
 stamped_waypoints1 = [];
 stamped_waypoints2 = [];
+v1 = 0; omega1 = 0;
+v2 = 0; omega2 = 0;
+v3 = 0; omega3 = 0;
+linear_error_2 = 0;
+angular_error_2 = 0;
+linear_error_3 = 0;
+angular_error_3 = 0;
 
 while(distanceToGoal > goalRadius )
 
@@ -99,23 +105,22 @@ while(distanceToGoal > goalRadius )
     [v1, omega1] = controller1(leaderCurrentPose);
     
     % Compute follower 1 controller outputs
-    [v2, ~] = pid_linear(stamped_waypoints1, t_ref);
+    [v2, linear_error_2] = pid_linear(stamped_waypoints1, t_ref);
     y = stamped_waypoints1(1,2)- robotCurrentPose(2);
     x = stamped_waypoints1(1,1) - robotCurrentPose(1);
     theta = atan2(y,x);
     dtheta = theta - robotCurrentPose(3);
     dtheta = mod(dtheta + pi, 2 * pi) - pi;
-    omega2 = pid_angular(dtheta);
+    [omega2, angular_error_2] = pid_angular(dtheta, angular_error_2, omega2);
     
     % Compute follower 2 controller outputs
     [v3, e] = pid_linear(stamped_waypoints2, t_ref);
-    disp(v3)
     y2 = stamped_waypoints2(1,2)- robot2CurrentPose(2);
     x2 = stamped_waypoints2(1,1) - robot2CurrentPose(1);
     theta2 = atan2(y2,x2);
     dtheta2 = theta2 - robot2CurrentPose(3);
     dtheta2 = mod(dtheta2 + pi, 2 * pi) - pi;
-    omega3 = pid_angular(dtheta2);
+    [omega3, angular_error_3] = pid_angular(dtheta2, angular_error_3, omega3);
     
     % Get the robot's velocity using controller inputs
     vel1 = derivative(leader, leaderCurrentPose, [v1 omega1]);
