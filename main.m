@@ -82,7 +82,7 @@ vizRate = rateControl(1/sampleTime);
 figure
 
 % Determine vehicle frame size to most closely represent vehicle with plotTransforms
-frameSize = robot.TrackWidth/1.5;
+frameSize = robot.TrackWidth/0.5;
 
 % Declare some empty variables for initial loop iteration
 stamped_waypoints1 = [];
